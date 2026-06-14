@@ -7,8 +7,8 @@ import logging
 import datetime
 import asyncio
 import requests  
+import base64  # Added for secure cryptographic encoding
 from typing import Optional
-import base64
 
 # ========================================================================
 # 1. SETTINGS AND CONFIGURATION (Railway Compatible)
@@ -40,12 +40,15 @@ class ProDiscordBot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
+        intents.invites = True  # Enabled to track server invite creations and usages
         
         super().__init__(
             command_prefix="!", 
             intents=intents,
             help_command=None
         )
+        self.welcome_channels = {}  # Stores dynamic mapping for welcome logs per server
+        self.invites = {}           # Cached repository of invite codes to parse referrers
 
     async def setup_hook(self):
         logger.info("Synchronizing slash commands...")
@@ -59,8 +62,53 @@ class ProDiscordBot(commands.Bot):
         logger.info(f"Bot successfully logged in! User: {self.user} (ID: {self.user.id})")
         logger.info("-" * 40)
         
+        # Populate initial invite tracking system caches across all active shards
+        for guild in self.guilds:
+            try:
+                self.invites[guild.id] = await guild.invites()
+            except Exception:
+                self.invites[guild.id] = []
+        
         activity = discord.Activity(type=discord.ActivityType.watching, name="the Server and Commands")
         await self.change_presence(status=discord.Status.online, activity=activity)
+
+    async def on_invite_create(self, invite):
+        if invite.guild.id not in self.invites:
+            self.invites[invite.guild.id] = []
+        self.invites[invite.guild.id].append(invite)
+
+    async def on_invite_delete(self, invite):
+        if invite.guild.id in self.invites:
+            self.invites[invite.guild.id] = [i for i in self.invites[invite.guild.id] if i.code != invite.code]
+
+    async def on_member_join(self, member):
+        welcome_channel_id = self.welcome_channels.get(member.guild.id)
+        if not welcome_channel_id:
+            return
+            
+        channel = member.guild.get_channel(welcome_channel_id)
+        if not channel:
+            return
+            
+        inviter_str = "Unknown"
+        try:
+            invites_before = self.invites.get(member.guild.id, [])
+            invites_after = await member.guild.invites()
+            self.invites[member.guild.id] = invites_after
+            
+            for invite_b in invites_before:
+                for invite_a in invites_after:
+                    if invite_b.code == invite_a.code and invite_a.uses > invite_b.uses:
+                        inviter_str = invite_a.inviter.mention if invite_a.inviter else "Unknown"
+                        break
+        except Exception as e:
+            logger.error(f"Error tracking invite details for {member}: {e}")
+            
+        welcome_msg = f"{member.mention} has joined {member.guild.name}, invited by {inviter_str}."
+        try:
+            await channel.send(welcome_msg)
+        except Exception as e:
+            logger.error(f"Failed to submit welcome embed to channel {welcome_channel_id}: {e}")
 
 bot = ProDiscordBot()
 
@@ -715,6 +763,153 @@ async def botinfo_cmd(interaction: discord.Interaction):
         embed.color = discord.Color.red()
         
     await interaction.response.send_message(embed=embed)
+
+# ---------------------------------------------------------
+# COMMAND 11: /startwelcome (DYNAMIC ADDITION)
+# ---------------------------------------------------------
+@bot.tree.command(name="startwelcome", description="Sets up the automatic welcome message system in the specified channel.")
+@app_commands.describe(channel="The target channel where welcome logs will be posted")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def startwelcome_cmd(interaction: discord.Interaction, channel: discord.TextChannel):
+    await interaction.response.defer(ephemeral=True)
+    
+    bot.welcome_channels[interaction.guild.id] = channel.id
+    try:
+        bot.invites[interaction.guild.id] = await interaction.guild.invites()
+    except Exception:
+        pass
+        
+    embed = create_embed(
+        title="✨ Welcome System Activated", 
+        description=f"The welcome system has been successfully mapped to {channel.mention}.\nFrom now on, new members and their inviters will be logged there.", 
+        color=discord.Color.green()
+    )
+    await interaction.followup.send(embed=embed)
+
+# ---------------------------------------------------------
+# COMMAND 12: /purge (DYNAMIC ADDITION)
+# ---------------------------------------------------------
+@bot.tree.command(name="purge", description="Bulk deletes messages from the specified or current channel.")
+@app_commands.describe(
+    amount="Number of messages to delete (Enter 0 or leave empty to clear ALL messages)",
+    channel="The target channel to purge (Defaults to current channel)"
+)
+@app_commands.checks.has_permissions(manage_messages=True)
+async def purge_cmd(interaction: discord.Interaction, amount: int = 0, channel: Optional[discord.TextChannel] = None):
+    await interaction.response.defer(ephemeral=True)
+    
+    target_channel = channel if channel else interaction.channel
+    if amount < 0:
+        await interaction.followup.send("❌ Invalid count! Please enter 0 or a positive number.", ephemeral=True)
+        return
+        
+    try:
+        purge_limit = None if amount == 0 else amount
+        deleted = await target_channel.purge(limit=purge_limit)
+        
+        if amount == 0:
+            success_desc = f"All eligible messages in {target_channel.mention} have been successfully cleared."
+        else:
+            success_desc = f"Successfully deleted `{len(deleted)}` messages in {target_channel.mention}."
+            
+        basari_embed = create_embed("🧹 Channel Cleaned", success_desc, discord.Color.brand_green())
+        await interaction.followup.send(embed=basari_embed)
+        logger.info(f"[PURGE] {interaction.user} deleted messages in channel {target_channel.id}.")
+    except discord.Forbidden:
+        await interaction.followup.send(f"❌ The bot lacks 'Manage Messages' permissions in {target_channel.mention}!")
+    except Exception as e:
+        await interaction.followup.send(f"❌ An error occurred during the purge process: {e}")
+
+# ---------------------------------------------------------
+# COMMAND 13: /encode (DYNAMIC ADDITION)
+# ---------------------------------------------------------
+@bot.tree.command(name="encode", description="Encodes the given plain text into Base64 format and exports it as a .txt file.")
+@app_commands.describe(
+    content="The raw text you want to securely encode",
+    file_name="The output file name (Default: encoded)"
+)
+async def encode_cmd(interaction: discord.Interaction, content: str, file_name: Optional[str] = "encoded"):
+    await interaction.response.defer(ephemeral=True)
+    
+    try:
+        encoded_bytes = base64.b64encode(content.encode("utf-8"))
+        encoded_text = encoded_bytes.decode("utf-8")
+        
+        if not file_name.endswith(".txt"):
+            file_name += ".txt"
+            
+        dosya_byte = io.BytesIO(encoded_text.encode("utf-8"))
+        discord_dosyasi = discord.File(fp=dosya_byte, filename=file_name)
+        
+        embed = create_embed(
+            title="🔒 Text Encoded Successfully",
+            description=f"Your message has been converted via the Base64 algorithm and exported to `{file_name}`.",
+            color=discord.Color.blue()
+        )
+        
+        await interaction.followup.send(embed=embed, file=discord_dosyasi)
+        dosya_byte.close()
+    except Exception as e:
+        await interaction.followup.send(f"❌ An unexpected cryptographic error occurred: {e}")
+
+# ---------------------------------------------------------
+# COMMAND 14: /sendwebhook (DYNAMIC ADDITION)
+# ---------------------------------------------------------
+@bot.tree.command(name="sendwebhook", description="Creates a temporary high-level webhook to dispatch messages under custom profiles.")
+@app_commands.describe(
+    channel="The destination channel where the webhook will broadcast",
+    message="The main text message content to be transmitted",
+    webhook_name="The spoofed display name for this webhook execution",
+    avatar_url="An optional image link (.png/.jpg) to override the webhook profile icon",
+    show_sender="Do you want your name to appear at the bottom of the message?",
+    ping_everyone="Do you want to mention @everyone?"
+)
+@app_commands.choices(
+    show_sender=[
+        app_commands.Choice(name="Yes, show", value="yes"),
+        app_commands.Choice(name="No, keep hidden", value="no")
+    ],
+    ping_everyone=PING_CHOICES
+)
+async def sendwebhook_cmd(
+    interaction: discord.Interaction, 
+    channel: discord.TextChannel, 
+    message: str, 
+    webhook_name: str, 
+    avatar_url: Optional[str] = None, 
+    show_sender: str = "no", 
+    ping_everyone: str = "no"
+):
+    await interaction.response.defer(ephemeral=True)
+    
+    if not channel.permissions_for(interaction.guild.me).manage_webhooks:
+        await interaction.followup.send(f"❌ The bot lacks 'Manage Webhooks' access rights in {channel.mention}!")
+        return
+        
+    content_pieces = []
+    if ping_everyone == "yes":
+        content_pieces.append("@everyone")
+        
+    if show_sender == "yes":
+        content_pieces.append(f"{message}\n\n*👤 Sender: {interaction.user.mention}*")
+    else:
+        content_pieces.append(message)
+
+    final_content = "\n".join(content_pieces)
+    
+    try:
+        webhook = await channel.create_webhook(name="Bot Temporary Webhook Engine")
+        await webhook.send(
+            content=final_content,
+            username=webhook_name,
+            avatar_url=avatar_url
+        )
+        await webhook.delete()
+        
+        await interaction.followup.send(f"✅ Webhook transmission successfully completed inside {channel.mention}!")
+        logger.info(f"[WEBHOOK] {interaction.user} deployed a webhook into {channel.id} under alias '{webhook_name}'.")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Webhook terminal injection failed: {e}")
 
 # ========================================================================
 # 7. SERVER RUN TRIGGER
