@@ -8,6 +8,7 @@ import datetime
 import asyncio
 import requests  
 from typing import Optional
+import base64
 
 # ========================================================================
 # 1. SETTINGS AND CONFIGURATION (Railway Compatible)
