@@ -150,9 +150,7 @@ for guild in self.guilds:
 logger.info(
     f"Total synced commands: {total}"
 )
-            
-        except Exception as sync_exception:
-            logger.error(f"[SYNC-ERROR] Unexpected behavior during context tree replication: {sync_exception}")
+  
         
         # Initializing global audit snapshot for invite links inside cache
         logger.info("[TRACKER-INITIALIZER] Running asynchronous sweep to map guild invite arrays...")
