@@ -13,6 +13,7 @@ from typing import Optional, List, Dict, Any, Union
 
 # ========================================================================
 # 1. ENTERPRISE LEVEL CONFIGURATION AND SETTINGS (Railway/VPS Ready)
+# Developer/Maintainer: @vantrexXxx
 # ========================================================================
 TOKEN: Optional[str] = os.getenv("DISCORD_TOKEN")
 PASTEBIN_API_KEY: str = os.getenv("PASTEBIN_API_KEY", "SNxRUbS82pBG5qmSW6AeCkmG7nhJhFB1")
@@ -20,7 +21,7 @@ PASTEBIN_URL: str = "https://pastebin.com/api/api_post.php"
 
 # Static Global System Configurations
 SYSTEM_VERSION: str = "4.7.0-ENTERPRISE-WELCOMER"
-INFRASTRUCTURE_NAME: str = "Sleeping Bot Services"
+INFRASTRUCTURE_NAME: str = "Sleeping Bot Services by @vantrexXxx"
 MAX_BULK_ATTACHMENTS: int = 10
 
 # ========================================================================
@@ -123,34 +124,21 @@ class ProDiscordBot(commands.Bot):
         logger.info(f"Framework Engineering Level: {SYSTEM_VERSION}")
         logger.info("=" * 60)
         
+        # PROPERLY INDENTED SYNC BLOCK
         try:
             total = 0
-
-for guild in self.guilds:
-    try:
-        guild_obj = discord.Object(id=guild.id)
-
-        self.tree.copy_global_to(guild=guild_obj)
-
-        synced = await self.tree.sync(
-            guild=guild_obj
-        )
-
-        total += len(synced)
-
-        logger.info(
-            f"[SYNC] {guild.name} -> {len(synced)} commands synced."
-        )
-
-    except Exception as e:
-        logger.error(
-            f"[SYNC ERROR] {guild.name}: {e}"
-        )
-
-logger.info(
-    f"Total synced commands: {total}"
-)
-  
+            for guild in self.guilds:
+                try:
+                    guild_obj = discord.Object(id=guild.id)
+                    self.tree.copy_global_to(guild=guild_obj)
+                    synced = await self.tree.sync(guild=guild_obj)
+                    total += len(synced)
+                    logger.info(f"[SYNC] {guild.name} -> {len(synced)} commands synced.")
+                except Exception as e:
+                    logger.error(f"[SYNC ERROR] {guild.name}: {e}")
+            logger.info(f"Total synced commands: {total}")
+        except Exception as sync_exception:
+            logger.error(f"[SYNC-ERROR] Unexpected behavior during context tree replication: {sync_exception}")
         
         # Initializing global audit snapshot for invite links inside cache
         logger.info("[TRACKER-INITIALIZER] Running asynchronous sweep to map guild invite arrays...")
@@ -229,7 +217,7 @@ logger.info(
             inviter_invites = inviter_stats[guild_id_str][inviter_id]
             logger.info(f"[TRACKER-UPDATE] Verified. Inviter metadata updated: {inviter_name} now maps to total count value = {inviter_invites}")
 
-        # Birebir istediğin format (Düz metin formatı)
+        # Exact required English Format
         if inviter_id and inviter_name != "Unknown":
             welcome_msg = f"{member.mention} has joined {member.guild.name},You are the {member.guild.member_count}th member! invited by {inviter_name}, who now has {inviter_invites} invites."
         else:
@@ -327,7 +315,7 @@ class TicketDropdown(discord.ui.Select):
             discord.SelectOption(label="Invite Rewards", description="If you invited people and waiting your invite rewards.", emoji="💳", value="Reward Tickets"),
             discord.SelectOption(label="Report Clowns", description="Report scammers.", emoji="🚫", value="Report Tickets")
         ]
-        super().__init__(placeholder="Select a secure inquiry management category to dispatch an engineering environment...", min_values=1, max_values=1, options=options, custom_id="ticket_routing_dropdown_pro")
+        super().__init__(placeholder="Select a secure inquiry management category...", min_values=1, max_values=1, options=options, custom_id="ticket_routing_dropdown_pro")
 
     async def callback(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)
@@ -336,7 +324,7 @@ class TicketDropdown(discord.ui.Select):
         existing_channel = discord.utils.get(guild.text_channels, name=f"ticket-{sanitized_username}")
         if existing_channel:
             logger.info(f"[TICKET-ROUTING-BLOCKED] Client {member.name} triggered duplicate thread instantiation attempts.")
-            return await interaction.followup.send(f"❌ **Blocked:** You already have an active workspace initialized inside this infrastructure zone: {existing_channel.mention}", ephemeral=True)
+            return await interaction.followup.send(f"❌ **Blocked:** You already have an active workspace initialized: {existing_channel.mention}", ephemeral=True)
 
         target_category = discord.utils.get(guild.categories, name=category_name)
         if not target_category:
@@ -362,10 +350,10 @@ class TicketDropdown(discord.ui.Select):
             )
             logger.info(f"[TICKET-CHANNEL-SUCCESS] Node channel built: {ticket_channel.name} under parent cluster block ID {target_category.id}")
 
-            welcome_embed = discord.Embed(title=f"🎫 Secure Workspace Initialized: {category_name}", description=f"Hello {member.mention}, state your specific technical challenge parameter or query scope details down below.", color=discord.Color.brand_green())
+            welcome_embed = discord.Embed(title=f"🎫 Secure Workspace Initialized: {category_name}", description=f"Hello {member.mention}, please state your specific inquiry or query scope details below.", color=discord.Color.brand_green())
             staff_ping = f"{member.mention} | {staff_role.mention}" if staff_role else member.mention
             await ticket_channel.send(content=staff_ping, embed=welcome_embed, view=TicketActionView())
-            await interaction.followup.send(f"✅ Secure workspace compiled and initialized inside routing database target zones: {ticket_channel.mention}", ephemeral=True)
+            await interaction.followup.send(f"✅ Secure workspace compiled and initialized: {ticket_channel.mention}", ephemeral=True)
         except Exception as build_err:
             logger.critical(f"[TICKET-CHANNEL-FATAL] Failed to compile structural text node channel metrics completely: {build_err}")
             await interaction.followup.send(f"❌ Failed to compile operational text node channel: {build_err}", ephemeral=True)
@@ -410,15 +398,15 @@ class TicketActionView(discord.ui.View):
         history_buffer += f"Generated At Timestamp: {datetime.datetime.utcnow().isoformat()}\n\n"
         
         async for msg in channel.history(limit=None, oldest_first=True):
-            history_buffer += f"[{msg.created_at.strftime('%Y-%m-%d %H:%M:%S')}] GuildUser Identity Object: ({msg.author.name} - ID:{msg.author.id}):\nPayload content stream data string -> \"{msg.content}\"\n"
+            history_buffer += f"[{msg.created_at.strftime('%Y-%m-%d %H:%M:%S')}] ({msg.author.name} - ID:{msg.author.id}):\n\"{msg.content}\"\n"
             if msg.attachments:
                 for att in msg.attachments:
-                    history_buffer += f" >> Attached Asset URL Binary Link Vector Matrix -> {att.url}\n"
+                    history_buffer += f" >> Attached Asset URL: {att.url}\n"
             history_buffer += "-" * 40 + "\n"
             
         await master_log_channel.send(file=discord.File(fp=io.BytesIO(history_buffer.encode("utf-8")), filename=f"transcript-secure-archive-{channel.name}.txt"))
         logger.info(f"[TRANSCRIPT-EXPORTED] Byte array stream packaged into text layout and flushed straight to logs: channel={channel.name}")
-        await interaction.followup.send("✅ Document exported and synchronized inside main internal logging vault repositories.", ephemeral=True)
+        await interaction.followup.send("✅ Document exported and synchronized inside main internal logging vaults.", ephemeral=True)
 
     @discord.ui.button(label="🗑️ Delete Workspace", style=discord.ButtonStyle.danger, custom_id="delete_ticket_button_pro")
     async def delete_ticket(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
@@ -440,7 +428,7 @@ async def on_app_command_error_handler(interaction: discord.Interaction, error: 
         await interaction.response.send_message("❌ Security Fault: Application administrative workspace matrix privileges missing.", ephemeral=True)
 
 # ========================================================================
-# 8. SLASH COMMANDS IMPLEMENTATION SEGMENTS (ALL OLD COMMANDS SECURED)
+# 8. SLASH COMMANDS IMPLEMENTATION SEGMENTS
 # ========================================================================
 CHOICES_PING_MATRIX = [app_commands.Choice(name="Yes", value="yes"), app_commands.Choice(name="No", value="no")]
 CHOICES_SENDER_MATRIX = [app_commands.Choice(name="Yes", value="yes"), app_commands.Choice(name="No", value="no")]
@@ -488,63 +476,41 @@ async def sendmytxt_cmd(interaction: discord.Interaction, channel: discord.TextC
     logger.info(f"[COMMAND-EXECUTE] /sendmytxt triggered by user={interaction.user.name} -> target_channel={channel.name}")
     await channel.send(file=discord.File(fp=io.BytesIO(await file.read()), filename=file.filename))
     await interaction.followup.send("✅ Document Routed with Absolute Payload Integrity Verification.", ephemeral=True)
-@bot.tree.command(
-    name="sendannounce",
-    description="Send booster verification panel."
-)
+
+@bot.tree.command(name="sendannounce", description="Send booster verification panel.")
 @app_commands.checks.has_permissions(administrator=True)
-async def sendannounce_cmd(
-    interaction: discord.Interaction
-):
-    await interaction.response.defer(
-        ephemeral=True
-    )
+async def sendannounce_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
 
     BOOSTER_GUILD_ID = 1518971603063410750
     VERIFY_CHANNEL_ID = 1518971603063410753
 
-    guild = bot.get_guild(
-        BOOSTER_GUILD_ID
-    )
+    guild = bot.get_guild(BOOSTER_GUILD_ID)
 
     if guild is None:
-        return await interaction.followup.send(
-            "❌ Booster server not found.",
-            ephemeral=True
-        )
+        return await interaction.followup.send("❌ Booster server not found.", ephemeral=True)
 
-    channel = guild.get_channel(
-        VERIFY_CHANNEL_ID
-    )
+    channel = guild.get_channel(VERIFY_CHANNEL_ID)
 
     if channel is None:
-        return await interaction.followup.send(
-            "❌ Verify channel not found.",
-            ephemeral=True
-        )
+        return await interaction.followup.send("❌ Verify channel not found.", ephemeral=True)
 
     embed = discord.Embed(
         title="🌟 Server Booster Verification",
-        description=
-        "Thank you for supporting our community! ❤️\n\n"
-        "If you have boosted our Main Server, click the button below.\n\n"
-        "**Verification Rules**\n"
-        "• **You must be in our Main Server.**\n"
-        "• **You must actively have the Server Booster role.**\n"
-        "• **Verification is automatic.**\n\n"
-        "***Click the button below to verify.***",
+        description=(
+            "Thank you for supporting our community! ❤️\n\n"
+            "If you have boosted our Main Server, click the button below.\n\n"
+            "**Verification Rules**\n"
+            "• **You must be in our Main Server.**\n"
+            "• **You must actively have the Server Booster role.**\n"
+            "• **Verification is automatic.**\n\n"
+            "***Click the button below to verify.***"
+        ),
         color=discord.Color.purple()
     )
 
-    await channel.send(
-        embed=embed,
-        view=VerifyBoosterView()
-    )
-
-    await interaction.followup.send(
-        "✅ Verification panel sent.",
-        ephemeral=True
-    )
+    await channel.send(embed=embed, view=VerifyBoosterView())
+    await interaction.followup.send("✅ Verification panel sent.", ephemeral=True)
 
 @bot.tree.command(name="sendmyfile", description="Accepts and routes generic binary files or media formats across internal channels.")
 async def sendmyfile_cmd(interaction: discord.Interaction, channel: discord.TextChannel, file: discord.Attachment) -> None:
@@ -626,8 +592,8 @@ async def purgetickets_cmd(interaction: discord.Interaction) -> None:
 @bot.tree.command(name="startwelcome", description="Configures and initializes the advanced greeting welcomer pipeline system.")
 @app_commands.checks.has_permissions(manage_guild=True)
 @app_commands.choices(profile_photo=[
-    app_commands.Choice(name="Açık (Profil Fotoğrafını Göster)", value="ON"),
-    app_commands.Choice(name="Kapalı (Sadece Mesaj At)", value="OFF")
+    app_commands.Choice(name="ON (Show Profile Photo)", value="ON"),
+    app_commands.Choice(name="OFF (Text Only)", value="OFF")
 ])
 async def startwelcome_cmd(interaction: discord.Interaction, channel: discord.TextChannel, profile_photo: str = "OFF") -> None:
     """Enterprise configurations parameter deployment script for welcoming metrics mapping loops."""
