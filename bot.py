@@ -11,9 +11,8 @@ import requests
 import base64  
 from typing import Optional, List, Dict, Any, Union
 
-# Telegram Kütüphane Entegrasyonları
-from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+# TELETHON KÜTÜPHANESİ ENTEGRASYONU
+from telethon import TelegramClient, events
 
 # ========================================================================
 # 1. ENTERPRISE LEVEL CONFIGURATION AND SETTINGS (Railway/VPS Ready)
@@ -28,11 +27,13 @@ SYSTEM_VERSION: str = "4.7.1-ENTERPRISE-WELCOMER"
 INFRASTRUCTURE_NAME: str = "Sleeping Bot Services by @vantrexXxx"
 MAX_BULK_ATTACHMENTS: int = 10
 
-# Telegram Repost Konfigürasyonları
-TELEGRAM_BOT_TOKEN: str = "7905845043:AAGMns4E1HxdMtTJni9QSW_Q12LJJOkyn8Y"
-TELEGRAM_TARGET_CHANNEL: str = "reposteddatav2"
-DISCORD_TARGET_GUILD_ID: int = 1518971603063410750
-DISCORD_TARGET_CHANNEL_ID: int = 1519034284017455185
+# ------------------------------------------------------------------------
+# USERBOT (TELEGRAM) VERİLERİNİN ENTEGRASYONU
+# ------------------------------------------------------------------------
+TELEGRAM_API_ID: int = 33462430  
+TELEGRAM_API_HASH: str = "c55be1d2cb63e058d9c64bae4f0c4ec3"  
+TELEGRAM_CHANNEL_USERNAME: str = "reposteddatav2"
+DISCORD_REPOST_CHANNEL_ID: int = 1518971603063410753  
 
 # ========================================================================
 # 2. ADVANCED LOGGING AND AUDIT SYSTEM IMPLEMENTATION
@@ -49,6 +50,9 @@ console_handler = logging.StreamHandler()
 console_formatter = logging.Formatter('%(asctime)s - [%(levelname)s] - %(name)s - %(message)s')
 console_handler.setFormatter(console_formatter)
 logger.addHandler(console_handler)
+
+# Telethon Client Başlatıcı (Oturum dosyasını yerel dizinde saklar)
+tg_client = TelegramClient('telegram_userbot_session', TELEGRAM_API_ID, TELEGRAM_API_HASH)
 
 # ========================================================================
 # 3. CORE EMBED DESIGN UTILITY FACTORY
@@ -94,10 +98,6 @@ class ProDiscordBot(commands.Bot):
             help_command=None
         )
         self.invites: Dict[int, List[discord.Invite]] = {}           
-        
-        # Telegram Repost State Atamaları
-        self.repost_active: bool = False
-        self.tg_app: Optional[Application] = None
 
     def load_data(self, filename: str, default: dict) -> dict:
         if not os.path.exists(filename):
@@ -126,95 +126,20 @@ class ProDiscordBot(commands.Bot):
         except Exception as view_error:
             logger.critical(f"Fatal vulnerability discovered during persistent view assembly: {view_error}")
 
-    async def start_telegram_repost(self) -> None:
-        """Telegram Kanali Dinleme Havuzunu Baslatir ve Yonlendirir"""
-        if self.tg_app is None:
-            self.tg_app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-
-            async def telegram_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-                if not self.repost_active:
-                    return
-
-                tg_msg = update.channel_post or update.message
-                if not tg_msg:
-                    return
-
-                # Sadece hedef kanaldan gelen verileri yakala
-                if tg_msg.chat and tg_msg.chat.username == TELEGRAM_TARGET_CHANNEL:
-                    channel = self.get_channel(DISCORD_TARGET_CHANNEL_ID)
-                    if not channel:
-                        logger.error("[REPOST-ERROR] Hedef Discord kanali sistemde bulunamadi.")
-                        return
-
-                    caption = tg_msg.caption or tg_msg.text or ""
-                    file_to_send = None
-                    file_name = ""
-                    file_size = 0
-
-                    if tg_msg.document:
-                        file_to_send = await tg_msg.document.get_file()
-                        file_name = tg_msg.document.file_name or "document"
-                        file_size = tg_msg.document.file_size
-                    elif tg_msg.video:
-                        file_to_send = await tg_msg.video.get_file()
-                        file_name = tg_msg.video.file_name or "video.mp4"
-                        file_size = tg_msg.video.file_size
-                    elif tg_msg.photo:
-                        file_to_send = await tg_msg.photo[-1].get_file()
-                        file_name = "photo.jpg"
-                        file_size = tg_msg.photo[-1].file_size
-
-                    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-                    if file_to_send:
-                        ext = file_name.split('.')[-1] if '.' in file_name else 'file'
-                        if file_size < 1024 * 1024:
-                            size_str = f"{round(file_size / 1024, 2)} KB"
-                        else:
-                            size_str = f"{round(file_size / (1024 * 1024), 2)} MB"
-
-                        # Tam olarak istenen meta-data alt bilgi yerlesimi
-                        footer = f"repost \n {ext}\n {file_name}\n {size_str} · \n  File: {file_name} Time: {current_time} Repost by - Crown"
-                        final_content = f"{caption}\n\n{footer}" if caption else footer
-
-                        # Discord 10 MB Limit Filtresi
-                        if file_size > 10 * 1024 * 1024:
-                            await channel.send(content=f"{final_content}\n\n*(⚠️ Not: Bu dosya 10 MB sinirini astigi icin Discord'a yuklenemedi.)*")
-                            return
-
-                        temp_path = f"temp_{file_to_send.file_id}_{file_name}"
-                        await file_to_send.download_to_drive(temp_path)
-
-                        with open(temp_path, 'rb') as f:
-                            await channel.send(content=final_content, file=discord.File(f, filename=file_name))
-
-                        if os.path.exists(temp_path):
-                            os.remove(temp_path)
-                    elif caption:
-                        footer = f"repost \n text\n message\n info · \n  Time: {current_time} Repost by - Crown"
-                        await channel.send(content=f"{caption}\n\n{footer}")
-
-            self.tg_app.add_handler(MessageHandler(filters.ALL, telegram_message_handler))
-            await self.tg_app.initialize()
-            await self.tg_app.start()
-            await self.tg_app.updater.start_polling()
-            logger.info("[REPOST] Telegram Bot dinleme havuzu basariyla aktif edildi.")
-
-    async def stop_telegram_repost(self) -> None:
-        """Telegram Kanali Dinleme Havuzunu Tamamen Kapatir"""
-        if self.tg_app:
-            await self.tg_app.updater.stop()
-            await self.tg_app.stop()
-            await self.tg_app.shutdown()
-            self.tg_app = None
-            logger.info("[REPOST] Telegram Bot dinleme havuzu tamamen kapatildi.")
-
     async def on_ready(self) -> None:
         logger.info("=" * 60)
         logger.info(f"AUTHORIZED ENTERPRISE SYSTEM CORE CONNECTION ACTIVE")
         logger.info(f"Target Agent Identity: {self.user} (Internal Identifier: {self.user.id})")
         logger.info(f"Framework Engineering Level: {SYSTEM_VERSION}")
         logger.info("=" * 60)
+        
+        # --- TELEGRAM DİNLEME ARKA PLAN SERVİSİNİ BAŞLATMA ---
+        logger.info("[TELEGRAM] Hesabınız üzerinden UserBot dinleme sistemi ayağa kaldırılıyor...")
+        try:
+            await tg_client.start()
+            logger.info("[TELEGRAM] Giriş doğrulandı ve bağlantı kuruldu. Kanal izleniyor...")
+        except Exception as tg_err:
+            logger.error(f"[TELEGRAM CRITICAL] Telegram hesabına bağlanırken hata: {tg_err}")
         
         try:
             total = 0
@@ -240,13 +165,6 @@ class ProDiscordBot(commands.Bot):
                 logger.warning(f"[TRACKER-INITIALIZER] Missing mandatory 'Manage Guild' permissions to monitor data in {guild.name}")
                 self.invites[guild.id] = []
         
-        # Otomatik Geri Yukleme (Persistence) Mekanizmasi
-        repost_config = self.load_data("repost_settings.json", {"active": False})
-        self.repost_active = repost_config.get("active", False)
-        if self.repost_active:
-            asyncio.create_task(self.start_telegram_repost())
-            logger.info("[REPOST] Kalinan yerden devam ediliyor: Otomatik Telegram aktarimi aktiflesitirildi.")
-
         system_activity = discord.Activity(type=discord.ActivityType.watching, name="the Server and Commands | v" + SYSTEM_VERSION)
         await self.change_presence(status=discord.Status.online, activity=system_activity)
 
@@ -324,8 +242,48 @@ class ProDiscordBot(commands.Bot):
         except Exception as execution_output_fault:
             logger.error(f"[MEMBER-JOIN-FAULT] Unable to dispatch text packet stream through internal gateway: {execution_output_fault}")
 
-
 bot = ProDiscordBot()
+
+# ------------------------------------------------------------------------
+# TELETHON TELEGRAM EVENTS (Yabancı Kanalı Dinleme Mekanizması)
+# ------------------------------------------------------------------------
+@tg_client.on(events.NewMessage(chats=TELEGRAM_CHANNEL_USERNAME))
+async def telegram_message_listener(event):
+    logger.info("[TELEGRAM] İzlenen kanalda yeni içerik saptandı.")
+    try:
+        discord_channel = bot.get_channel(DISCORD_REPOST_CHANNEL_ID)
+        if not discord_channel:
+            logger.error(f"[TELEGRAM-REPOST] Hedef Discord kanalı eksik veya geçersiz. ID: {DISCORD_REPOST_CHANNEL_ID}")
+            return
+            
+        message_text = event.message.message
+        
+        # Eğer mesaj içerisinde dosya/fotoğraf/medya varsa
+        if event.message.media:
+            logger.info("[TELEGRAM] Medya algılandı, RAM üzerine çekiliyor...")
+            media_buffer = io.BytesIO()
+            await tg_client.download_media(event.message, media_buffer)
+            media_buffer.seek(0)
+            
+            filename = "telegram_file"
+            if hasattr(event.message.media, 'document') and event.message.media.document.attributes:
+                for attr in event.message.media.document.attributes:
+                    if hasattr(attr, 'file_name'):
+                        filename = attr.file_name
+            else:
+                filename = "photo.jpg"
+                
+            discord_file = discord.File(fp=media_buffer, filename=filename)
+            await discord_channel.send(content=message_text if message_text else None, file=discord_file)
+            logger.info("[TELEGRAM-REPOST] Medyalı içerik Discord'a başarıyla klonlandı.")
+        else:
+            # Sadece düz yazı ise
+            if message_text:
+                await discord_channel.send(content=message_text)
+                logger.info("[TELEGRAM-REPOST] Metin içeriği Discord'a başarıyla klonlandı.")
+                
+    except Exception as repost_err:
+        logger.error(f"[TELEGRAM-REPOST ERROR] Mesaj geçiş köprüsünde bir tıkanma oldu: {repost_err}")
 
 # ========================================================================
 # 5. PERSISTENT SYSTEM COMPONENTS AND HELPER VIEWS
@@ -475,7 +433,7 @@ class TicketActionView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Delete Workspace", style=discord.ButtonStyle.danger, custom_id="delete_ticket_button_pro")
     async def delete_ticket(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        await interaction.response.send_message("🗑️ Purging active technical node workspace environment permanently in 5 seconds...")
+        await interaction.channel.send("🗑️ Purging active technical node workspace environment permanently in 5 seconds...")
         await asyncio.sleep(5)
         await interaction.channel.delete()
 
@@ -494,30 +452,6 @@ async def on_app_command_error_handler(interaction: discord.Interaction, error: 
 # ========================================================================
 CHOICES_PING_MATRIX = [app_commands.Choice(name="Yes", value="yes"), app_commands.Choice(name="No", value="no")]
 CHOICES_SENDER_MATRIX = [app_commands.Choice(name="Yes", value="yes"), app_commands.Choice(name="No", value="no")]
-
-@bot.tree.command(name="startrepost", description="Starts the automatic Telegram channel reposting pipeline.")
-@app_commands.checks.has_permissions(administrator=True)
-async def startrepost_cmd(interaction: discord.Interaction) -> None:
-    await interaction.response.defer(ephemeral=True)
-    if bot.repost_active:
-        return await interaction.followup.send("ℹ️ Telegram repost pipeline is already running.", ephemeral=True)
-        
-    bot.repost_active = True
-    bot.save_data("repost_settings.json", {"active": True})
-    await bot.start_telegram_repost()
-    await interaction.followup.send("✅ Telegram repost pipeline successfully started and synchronized.", ephemeral=True)
-
-@bot.tree.command(name="stoprepost", description="Stops the automatic Telegram channel reposting pipeline.")
-@app_commands.checks.has_permissions(administrator=True)
-async def stoprepost_cmd(interaction: discord.Interaction) -> None:
-    await interaction.response.defer(ephemeral=True)
-    if not bot.repost_active:
-        return await interaction.followup.send("ℹ️ Telegram repost pipeline is already stopped.", ephemeral=True)
-        
-    bot.repost_active = False
-    bot.save_data("repost_settings.json", {"active": False})
-    await bot.stop_telegram_repost()
-    await interaction.followup.send("🛑 Telegram repost pipeline successfully stopped and decoupled.", ephemeral=True)
 
 @bot.tree.command(name="send", description="Sends text payload content arrays directly to the designated channel.")
 @app_commands.choices(show_sender=CHOICES_SENDER_MATRIX, ping_everyone=CHOICES_PING_MATRIX)
@@ -550,7 +484,7 @@ async def modifytxt_cmd(interaction: discord.Interaction, channel: discord.TextC
     if not file_name.endswith(".txt"): file_name += ".txt"
     flattened = " ".join([l.strip() for l in content.splitlines() if l.strip()])
     await channel.send(file=discord.File(fp=io.BytesIO(flattened.encode("utf-8")), filename=file_name))
-    await interaction.followup.send("✅ Horizontally Serialized Modified Document Dispatched.", ephemeral=True)
+    await interaction.followup.send("✅ Horizontally Serialized Modified Document Dispatched.", flattened)
 
 @bot.tree.command(name="sendmytxt", description="Reads an uploaded local text document payload and routes it onto designated pipelines.")
 async def sendmytxt_cmd(interaction: discord.Interaction, channel: discord.TextChannel, file: discord.Attachment) -> None:
