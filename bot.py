@@ -51,10 +51,13 @@ class ProDiscordBot(commands.Bot):
         self.welcome_channels = {}  # In-memory dictionary tracking maps of guild_id -> channel_id
         self.invites = {}           # Cache tracking current active invites across guilds
 
-    async def setup_hook(self):
+async def setup_hook(self):
         logger.info("Registering persistent views inside the execution hook...")
-        # Add persistence listener for the booster verification button to withstand bot reboots
+        # Mevcut booster doğrulama butonu
         self.add_view(VerifyBoosterView())
+        # YENİ TICKET SİSTEMİ KALICI GÖRÜNÜMLERİ
+        self.add_view(TicketSetupView())
+        self.add_view(TicketActionView())
 
     async def on_ready(self):
         logger.info(f"Bot successfully logged in! User: {self.user} (ID: {self.user.id})")
@@ -1070,7 +1073,175 @@ async def sendannounce_cmd(interaction: discord.Interaction):
         await interaction.followup.send("❌ The bot doesn't have permission to write messages in the designated verification channel.", ephemeral=True)
     except Exception as e:
         await interaction.followup.send(f"❌ System failure during message dispatch: {e}", ephemeral=True)
+# ========================================================================
+# NEW ENGINE: ADVANCED TICKET (R.O.T.I STYLE TICKET CORE)
+# ========================================================================
+TICKET_LOG_CHANNEL_ID = 1518977494068498653
+TICKET_STAFF_ROLE_ID = 1473685173655830677
 
+class TicketSetupView(discord.ui.View):
+    """The persistent 'Create Ticket' button panel setup layout"""
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="📩 Open Support Ticket", 
+        style=discord.ButtonStyle.primary, 
+        custom_id="create_ticket_button"
+    )
+    async def create_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        member = interaction.user
+
+        # Anti-spam check: prevent user from flooding multiple open ticket channels
+        existing_channel = discord.utils.get(guild.channels, name=f"ticket-{member.name.lower()}")
+        if existing_channel:
+            await interaction.followup.send(f"❌ You already have an active open ticket: {existing_channel.mention}", ephemeral=True)
+            return
+
+        staff_role = guild.get_role(TICKET_STAFF_ROLE_ID)
+        
+        # Override rules to lock out standard users and open context for creators and staff
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            member: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
+            guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True, manage_channels=True)
+        }
+        
+        if staff_role:
+            overwrites[staff_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True)
+
+        try:
+            # Generate the private secure message room
+            ticket_channel = await guild.create_text_channel(
+                name=f"ticket-{member.name}",
+                overwrites=overwrites,
+                topic=f"Owner: {member.id} | Spawning Sync: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            )
+
+            embed = discord.Embed(
+                title="🎫 Welcome to Support Inquiry",
+                description=(
+                    f"Hello {member.mention}, your support workspace has been successfully constructed!\n\n"
+                    "Please state your issues, account specifics, or claims clearly below. Our staff team will reach out to you shortly.\n\n"
+                    "**Management Triggers:**\n"
+                    "🔒 **Close:** Revokes room access permissions from the creator.\n"
+                    "📝 **Transcript:** Packs all chat history buffers and backups into the logs archive.\n"
+                    "🗑️ **Delete:** Purges the text channel asset environment completely from the guild tree."
+                ),
+                color=discord.Color.brand_green(),
+                timestamp=discord.utils.utcnow()
+            )
+            embed.set_footer(text="Advanced Ticket Infrastructure Blueprint")
+            
+            await ticket_channel.send(content=f"{member.mention} | {staff_role.mention if staff_role else ''}", embed=embed, view=TicketActionView())
+            await interaction.followup.send(f"✅ Your target support channel workspace is ready: {ticket_channel.mention}", ephemeral=True)
+            logger.info(f"[TICKET-CREATE] {member} launched custom workspace loop {ticket_channel.id}")
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ Core processing failed to initialize channel: {e}", ephemeral=True)
+
+class TicketActionView(discord.ui.View):
+    """Management operations matrix dashboard bound inside the active ticket rooms"""
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🔒 Close", style=discord.ButtonStyle.secondary, custom_id="close_ticket_button")
+    async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        channel = interaction.channel
+        
+        topic = channel.topic or ""
+        member_id = None
+        if "Owner:" in topic:
+            try: member_id = int(topic.split("|")[0].split(":")[1].strip())
+            except: pass
+
+        if member_id:
+            member = interaction.guild.get_member(member_id)
+            if member:
+                # Evict the user profile context from viewing rights
+                await channel.set_permissions(member, overwrite=None)
+        
+        await channel.send("🔒 **Ticket Locked.** Creator access permissions evicted. Operators can now dump transcripts or execute deletion routines.")
+
+    @discord.ui.button(label="📝 Transcript", style=discord.ButtonStyle.primary, custom_id="transcript_ticket_button")
+    async def transcript_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        channel = interaction.channel
+        log_channel = interaction.client.get_channel(TICKET_LOG_CHANNEL_ID)
+
+        if not log_channel:
+            await interaction.followup.send("❌ Master logs data drop endpoint missing or inaccessible by app context rules.", ephemeral=True)
+            return
+
+        await interaction.followup.send("📝 Compiling historical text data metrics. Please wait...", ephemeral=True)
+
+        history_text = f"--- HISTORICAL WORKSPACE TRANSACTION TRANSCRIPT: {channel.name} ---\n"
+        history_text += f"Dump Instance Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        history_text += f"Executing Agent Profile: {interaction.user} ({interaction.user.id})\n"
+        history_text += "----------------------------------------------------------------------\n\n"
+
+        async for msg in channel.history(limit=None, oldest_first=True):
+            time_str = msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            history_text += f"[{time_str}] {msg.author} ({msg.author.id}): {msg.content}\n"
+            if msg.attachments:
+                for att in msg.attachments:
+                    history_text += f" > [Media Ingestion Reference Link]: {att.url}\n"
+
+        file_bytes = io.BytesIO(history_text.encode("utf-8"))
+        discord_file = discord.File(fp=file_bytes, filename=f"transcript-{channel.name}.txt")
+
+        embed = discord.Embed(
+            title="📝 Ticket Session Archived",
+            description=f"**Target Room Tag:** `{channel.name}`\n**Archiving Officer:** {interaction.user.mention}\n**State:** File manifest exported securely to log grid.",
+            color=discord.Color.blue(),
+            timestamp=discord.utils.utcnow()
+        )
+        
+        await log_channel.send(embed=embed, file=discord_file)
+        await interaction.followup.send("✅ Document archive payload pushed out successfully to the log workspace!", ephemeral=True)
+
+    @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, custom_id="delete_ticket_button")
+    async def delete_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("🗑️ Channel termination sequence active. Purging workspace in 5 seconds...")
+        await asyncio.sleep(5)
+        await interaction.channel.delete()
+
+# ---------------------------------------------------------
+# COMMAND 16: /ticketsetup (PANEL EXPLOITATION PLATFORM)
+# ---------------------------------------------------------
+@bot.tree.command(name="ticketsetup", description="Deploys the persistent interactive R.O.T.I support ticketing board to a channel.")
+@app_commands.checks.has_permissions(administrator=True)
+async def ticketsetup_cmd(interaction: discord.Interaction, channel: discord.TextChannel):
+    await interaction.response.defer(ephemeral=True)
+
+    embed = discord.Embed(
+        title="📩 Support Dispatch Services Panel",
+        description=(
+            "If you are encountering network configuration issues, need account sync adjustments, "
+            "or wish to file claims/reports, click the validation trigger button below to spawn a private workspace thread.\n\n"
+            "**Operational Rules:**\n"
+            "• Flooding or launching spam inquiries without viable cause leads to systematic penalties.\n"
+            "• Created private communication channels are only accessible to you and assigned network team leads.\n"
+            "• Sessions will be completely transcribed and archived upon completion."
+        ),
+        color=discord.Color.dark_blue(),
+        timestamp=discord.utils.utcnow()
+    )
+    if interaction.guild.icon:
+        embed.set_thumbnail(url=interaction.guild.icon.url)
+    embed.set_footer(text="Official Ticket System Infrastructure", icon_url=bot.user.display_avatar.url if bot.user and bot.user.display_avatar else None)
+
+    try:
+        await channel.send(embed=embed, view=TicketSetupView())
+        await interaction.followup.send(f"✅ Ticketing node setup completed successfully. Panel posted inside {channel.mention}.", ephemeral=True)
+        logger.info(f"[TICKET-SETUP] Deployed master structural grid profile into channel {channel.id}")
+    except discord.Forbidden:
+        await interaction.followup.send("❌ Error: App lacks sufficient permission scopes to transmit content cards to that destination.", ephemeral=True)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Unexpected script interrupt crash: {e}", ephemeral=True)
 # ========================================================================
 # 7. SERVER RUN TRIGGER
 # ========================================================================
