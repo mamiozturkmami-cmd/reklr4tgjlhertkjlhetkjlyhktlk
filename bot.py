@@ -279,10 +279,10 @@ class TicketDropdown(discord.ui.Select):
     """
     def __init__(self) -> None:
         options: List[discord.SelectOption] = [
-            discord.SelectOption(label="General Support", description="Standard technical or community management assistance.", emoji="🛠️", value="Support Tickets"),
-            discord.SelectOption(label="Partnership", description="Business alliances, promotional mergers, and inquiries.", emoji="🤝", value="Partnership Tickets"),
-            discord.SelectOption(label="Billing & Operations", description="Payment processing updates, account credentials or premium issues.", emoji="💳", value="Billing Tickets"),
-            discord.SelectOption(label="Report Violation", description="File behavioral compliance claims or report severe system vulnerability.", emoji="🚫", value="Report Tickets")
+            discord.SelectOption(label="Support", description="If you have any issues.", emoji="🛠️", value="Support Tickets"),
+            discord.SelectOption(label="Partnership", description="If you wanna do partnership/ads for ads.", emoji="🤝", value="Partnership Tickets"),
+            discord.SelectOption(label="Invite Rewards", description="If you invited people and waiting your invite rewards.", emoji="💳", value="Reward Tickets"),
+            discord.SelectOption(label="Report Clowns", description="Report scammers.", emoji="🚫", value="Report Tickets")
         ]
         super().__init__(
             placeholder="Select a secure inquiry management category...", 
