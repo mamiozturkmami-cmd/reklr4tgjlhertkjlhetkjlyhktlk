@@ -19,7 +19,7 @@ PASTEBIN_API_KEY: str = os.getenv("PASTEBIN_API_KEY", "SNxRUbS82pBG5qmSW6AeCkmG7
 PASTEBIN_URL: str = "https://pastebin.com/api/api_post.php"
 
 # Static Global System Configurations
-SYSTEM_VERSION: str = "4.6.5-ENTERPRISE-WELCOMER"
+SYSTEM_VERSION: str = "4.7.0-ENTERPRISE-WELCOMER"
 INFRASTRUCTURE_NAME: str = "Sleeping Bot Services"
 MAX_BULK_ATTACHMENTS: int = 10
 
@@ -206,11 +206,11 @@ class ProDiscordBot(commands.Bot):
             inviter_invites = inviter_stats[guild_id_str][inviter_id]
             logger.info(f"[TRACKER-UPDATE] Verified. Inviter metadata updated: {inviter_name} now maps to total count value = {inviter_invites}")
 
-        # EXACT USER requested format schema
+        # Birebir istediğin format (Düz metin formatı)
         if inviter_id and inviter_name != "Unknown":
-            welcome_msg = f"{member.mention} has joined **{member.guild.name}**,You are the {member.guild.member_count}th member! invited by **{inviter_name}**, who now has **{inviter_invites}** invites."
+            welcome_msg = f"{member.mention} has joined {member.guild.name},You are the {member.guild.member_count}th member! invited by {inviter_name}, who now has {inviter_invites} invites."
         else:
-            welcome_msg = f"{member.mention} has joined **{member.guild.name}**,You are the {member.guild.member_count}th member! invited by **Unknown**, who now has **0** invites."
+            welcome_msg = f"{member.mention} has joined {member.guild.name},You are the {member.guild.member_count}th member! invited by Unknown, who now has 0 invites."
 
         # Profile Picture dynamic visibility switch check matrix
         embed = None
