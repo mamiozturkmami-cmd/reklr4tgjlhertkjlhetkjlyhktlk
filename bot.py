@@ -126,6 +126,15 @@ class ProDiscordBot(commands.Bot):
         try:
             synced_commands = await self.tree.sync()
             logger.info(f"Success! Registered `{len(synced_commands)}` global slash application interactions.")
+            
+            # ANLIK GÖZÜKMEME HATASINI ÇÖZEN EK KOD DÖNGÜSÜ (Guild-Specific Sync)
+            for guild in self.guilds:
+                try:
+                    await self.tree.sync(guild=discord.Object(id=guild.id))
+                    logger.info(f"[SYNC-GUILD] Instantly replicated tree mapping layout to guild: {guild.name} ({guild.id})")
+                except Exception as guild_sync_err:
+                    logger.warning(f"[SYNC-GUILD-FAIL] Could not sync straight to guild {guild.id}: {guild_sync_err}")
+                    
         except Exception as sync_exception:
             logger.error(f"[SYNC-ERROR] Unexpected behavior during context tree replication: {sync_exception}")
         
@@ -168,7 +177,6 @@ class ProDiscordBot(commands.Bot):
             
         settings = welcome_settings[guild_id_str]
         channel_id = settings.get("channel_id")
-        show_pfp = settings.get("show_pfp", "OFF")
         
         channel = member.guild.get_channel(channel_id)
         if not channel:
@@ -212,14 +220,12 @@ class ProDiscordBot(commands.Bot):
         else:
             welcome_msg = f"{member.mention} has joined {member.guild.name},You are the {member.guild.member_count}th member! invited by Unknown, who now has 0 invites."
 
-        # Profile Picture dynamic visibility switch check matrix
+        # MANDATORY PROFILE PICTURE LOGIC (PP artık tamamen zorunlu ve otomatik)
         embed = None
-        if show_pfp == "ON" and member.display_avatar:
+        if member.display_avatar:
             embed = discord.Embed(color=discord.Color.from_rgb(47, 49, 54))
             embed.set_image(url=member.display_avatar.url)
-            logger.info(f"[MEMBER-JOIN] Profile picture attachment parameter active (ON). Compiling image into container.")
-        else:
-            logger.info(f"[MEMBER-JOIN] Profile picture visibility parameter suppressed (OFF).")
+            logger.info(f"[MEMBER-JOIN] Profile picture attachment compiled automatically into the container container.")
 
         try:
             if embed:
@@ -457,7 +463,7 @@ async def modifytxt_cmd(interaction: discord.Interaction, channel: discord.TextC
     if not file_name.endswith(".txt"): file_name += ".txt"
     flattened = " ".join([l.strip() for l in content.splitlines() if l.strip()])
     await channel.send(file=discord.File(fp=io.BytesIO(flattened.encode("utf-8")), filename=file_name))
-    await interaction.followup.send("✅ Horizontally Serialized Modified Document Dispatched.", ephemeral=True)
+    await interaction.followup.send("✅ Horizontally Serialized Modified Document Dispatched.", preferred=True)
 
 @bot.tree.command(name="sendmytxt", description="Reads an uploaded local text document payload structure and routes it onto designated network pipelines.")
 async def sendmytxt_cmd(interaction: discord.Interaction, channel: discord.TextChannel, file: discord.Attachment) -> None:
@@ -545,19 +551,15 @@ async def purgetickets_cmd(interaction: discord.Interaction) -> None:
 
 @bot.tree.command(name="startwelcome", description="Configures and initializes the advanced greeting welcomer pipeline system.")
 @app_commands.checks.has_permissions(manage_guild=True)
-@app_commands.choices(profile_photo=[
-    app_commands.Choice(name="Açık (Profil Fotoğrafını Göster)", value="ON"),
-    app_commands.Choice(name="Kapalı (Sadece Mesaj At)", value="OFF")
-])
-async def startwelcome_cmd(interaction: discord.Interaction, channel: discord.TextChannel, profile_photo: str = "OFF") -> None:
+async def startwelcome_cmd(interaction: discord.Interaction, channel: discord.TextChannel) -> None:
     """Enterprise configurations parameter deployment script for welcoming metrics mapping loops."""
     await interaction.response.defer(ephemeral=True)
-    logger.info(f"[COMMAND-WELCOME-START] Initializing deployment setup config array request: channel={channel.name}, pfp={profile_photo} by user={interaction.user.name}")
+    logger.info(f"[COMMAND-WELCOME-START] Initializing deployment setup config array request: channel={channel.name} by user={interaction.user.name}")
     
     settings = bot.load_data("welcome_settings.json", {})
     settings[str(interaction.guild.id)] = {
         "channel_id": channel.id,
-        "show_pfp": profile_photo
+        "show_pfp": "ON" # Sistem arka planında profil resmi her zaman açık kalacak şekilde ayarlandı
     }
     bot.save_data("welcome_settings.json", settings)
     
@@ -572,7 +574,7 @@ async def startwelcome_cmd(interaction: discord.Interaction, channel: discord.Te
         embed=EnterpriseEmbedFactory.build(
             "✨ Welcome System Active Routing Node Established", 
             f"The welcoming telemetries have been successfully routed onto target data node: {channel.mention}\n"
-            f"Profile Picture Render Configuration Parameter Toggle state resolved to: **{profile_photo}**", 
+            f"Profile Picture Render Configuration Parameter is now: **MANDATORY / FORCED**", 
             discord.Color.green(), 
             bot
         )
