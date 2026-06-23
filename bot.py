@@ -490,6 +490,63 @@ async def sendmytxt_cmd(interaction: discord.Interaction, channel: discord.TextC
     logger.info(f"[COMMAND-EXECUTE] /sendmytxt triggered by user={interaction.user.name} -> target_channel={channel.name}")
     await channel.send(file=discord.File(fp=io.BytesIO(await file.read()), filename=file.filename))
     await interaction.followup.send("✅ Document Routed with Absolute Payload Integrity Verification.", ephemeral=True)
+@bot.tree.command(
+    name="sendannounce",
+    description="Send booster verification panel."
+)
+@app_commands.checks.has_permissions(administrator=True)
+async def sendannounce_cmd(
+    interaction: discord.Interaction
+):
+    await interaction.response.defer(
+        ephemeral=True
+    )
+
+    BOOSTER_GUILD_ID = 1518971603063410750
+    VERIFY_CHANNEL_ID = 1518971603063410753
+
+    guild = bot.get_guild(
+        BOOSTER_GUILD_ID
+    )
+
+    if guild is None:
+        return await interaction.followup.send(
+            "❌ Booster server not found.",
+            ephemeral=True
+        )
+
+    channel = guild.get_channel(
+        VERIFY_CHANNEL_ID
+    )
+
+    if channel is None:
+        return await interaction.followup.send(
+            "❌ Verify channel not found.",
+            ephemeral=True
+        )
+
+    embed = discord.Embed(
+        title="🌟 Server Booster Verification",
+        description=
+        "Thank you for supporting our community! ❤️\n\n"
+        "If you have boosted our Main Server, click the button below.\n\n"
+        "**Verification Rules**\n"
+        "• **You must be in our Main Server.**\n"
+        "• **You must actively have the Server Booster role.**\n"
+        "• **Verification is automatic.**\n\n"
+        "***Click the button below to verify.***",
+        color=discord.Color.purple()
+    )
+
+    await channel.send(
+        embed=embed,
+        view=VerifyBoosterView()
+    )
+
+    await interaction.followup.send(
+        "✅ Verification panel sent.",
+        ephemeral=True
+    )
 
 @bot.tree.command(name="sendmyfile", description="Accepts and routes generic binary files or media formats across internal channels.")
 async def sendmyfile_cmd(interaction: discord.Interaction, channel: discord.TextChannel, file: discord.Attachment) -> None:
