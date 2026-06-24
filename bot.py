@@ -23,7 +23,7 @@ PASTEBIN_API_KEY: str = os.getenv("PASTEBIN_API_KEY", "SNxRUbS82pBG5qmSW6AeCkmG7
 PASTEBIN_URL: str = "https://pastebin.com/api/api_post.php"
 
 # Static Global System Configurations
-SYSTEM_VERSION: str = "4.7.1-ENTERPRISE-WELCOMER"
+SYSTEM_VERSION: str = "4.7.2-ENTERPRISE-DYNAMIC-SYNC"
 INFRASTRUCTURE_NAME: str = "Sleeping Bot Services by @vantrexXxx"
 MAX_BULK_ATTACHMENTS: int = 10
 
@@ -141,20 +141,9 @@ class ProDiscordBot(commands.Bot):
         except Exception as tg_err:
             logger.error(f"[TELEGRAM CRITICAL] Telegram hesabına bağlanırken hata: {tg_err}")
         
-        try:
-            total = 0
-            for guild in self.guilds:
-                try:
-                    guild_obj = discord.Object(id=guild.id)
-                    self.tree.copy_global_to(guild=guild_obj)
-                    synced = await self.tree.sync(guild=guild_obj)
-                    total += len(synced)
-                    logger.info(f"[SYNC] {guild.name} -> {len(synced)} commands synced.")
-                except Exception as e:
-                    logger.error(f"[SYNC ERROR] {guild.name}: {e}")
-            logger.info(f"Total synced commands: {total}")
-        except Exception as sync_exception:
-            logger.error(f"[SYNC-ERROR] Unexpected behavior during context tree replication: {sync_exception}")
+        # NOT: on_ready içindeki hatalı API tıkanıklığı yaratan döngü silindi. 
+        # Artık komutlar dinamik prefix komutu veya Discord'un global yapısıyla stabil çalışacak.
+        logger.info("[SYNC-SYSTEM] Boot process optimized. Global command mapping deferring to manual/global sync matrix.")
         
         logger.info("[TRACKER-INITIALIZER] Running asynchronous sweep to map guild invite arrays...")
         for guild in self.guilds:
@@ -484,7 +473,7 @@ async def modifytxt_cmd(interaction: discord.Interaction, channel: discord.TextC
     if not file_name.endswith(".txt"): file_name += ".txt"
     flattened = " ".join([l.strip() for l in content.splitlines() if l.strip()])
     await channel.send(file=discord.File(fp=io.BytesIO(flattened.encode("utf-8")), filename=file_name))
-    await interaction.followup.send("✅ Horizontally Serialized Modified Document Dispatched.", flattened)
+    await interaction.followup.send("✅ Horizontally Serialized Modified Document Dispatched.", ephemeral=True)
 
 @bot.tree.command(name="sendmytxt", description="Reads an uploaded local text document payload and routes it onto designated pipelines.")
 async def sendmytxt_cmd(interaction: discord.Interaction, channel: discord.TextChannel, file: discord.Attachment) -> None:
@@ -672,8 +661,37 @@ async def resetinvites_cmd(interaction: discord.Interaction) -> None:
         
     await interaction.followup.send("✅ Database Purge Protocol Executed: All recorded user invitation statistics numbers have been wiped back to default zero layers.", ephemeral=True)
 
+
 # ========================================================================
-# 9. SYSTEM EXECUTION LIFECYCLE INITIALIZER ENTRY POINT
+# 10. CRITICAL MANUAL DYNAMIC SYNC ENGINE (PREFIX COMMAND)
+# ========================================================================
+@bot.command(name="sync")
+@commands.is_owner()
+async def dynamic_sync_engine(ctx: commands.Context, spec: Optional[str] = None) -> None:
+    """
+    Güvenli ve esnek senkronizasyon mekanizması.
+    Kullanım:
+      !sync         -> Mevcut sunucudaki komutları Discord global havuzuna yükler (En temizi).
+      !sync copy    -> Global komutları zorla içinde bulunulan sunucuya kopyalar.
+      !sync purge   -> İçinde bulunulan sunucunun özel komut ağacını temizler.
+    """
+    if spec == "copy":
+        ctx.bot.tree.copy_global_to(guild=ctx.guild)
+        synced = await ctx.bot.tree.sync(guild=ctx.guild)
+        await ctx.send(f"⚠️ **[Local Sync]** Global komutlar sadece bu sunucuya ({ctx.guild.name}) kopyalandı ve tetiklendi: **{len(synced)}**")
+    elif spec == "purge":
+        ctx.bot.tree.clear_commands(guild=ctx.guild)
+        await ctx.bot.tree.sync(guild=ctx.guild)
+        await ctx.send(f"🛑 Bu sunucunun yerel komut ağacı tamamen boşaltıldı.")
+    else:
+        # En güvenli ve temiz küresel Discord API senkronizasyonu
+        await ctx.send("🔄 Komutlar Discord API sunucularına global olarak basılıyor...")
+        synced = await ctx.bot.tree.sync()
+        await ctx.send(f"✅ **[Global Sync Başarılı]** Toplam **{len(synced)}** slash komutu sisteme işlendi. Diğer sunucularda görünmesi 5-10 dakika sürebilir (Discord'u kapatıp açmayı unutma!).")
+
+
+# ========================================================================
+# 11. SYSTEM EXECUTION LIFECYCLE INITIALIZER ENTRY POINT
 # ========================================================================
 if __name__ == "__main__":
     logger.info("Initializing system deployment environment configuration analysis checking pipelines parameters...")
